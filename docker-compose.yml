@@ -1,0 +1,93 @@
+version: '3.3'
+
+services:
+
+  elasticsearch:
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    networks:
+      - elk
+
+  logstash:
+    build:
+      context: logstash/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "5000:5000"
+      - "9600:9600"
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    build:
+      context: kibana/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config:ro
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  nginx-proxy:
+    image: jwilder/nginx-proxy
+    ports:
+      - "80:80"
+    networks:
+      - elk
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - nginx-logs:/var/log/nginx:rw
+      - ./nginx-proxy/nginx.tmpl:/app/nginx.tmpl
+      - ./nginx-proxy/log_format.conf:/etc/nginx/log_format.conf
+      - ./nginx-proxy/nginx_custom.conf:/etc/nginx/conf.d/nginx_custom.conf
+      
+  docker-filebeat-nginx:
+    build:
+      context: docker-filebeat-nginx/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - nginx-logs:/var/log/nginx:rw
+      - ./docker-filebeat-nginx/filebeat.yml:/etc/filebeat/filebeat.yml:ro
+    environment:
+      LOGSTASH_HOST: "logstash"
+      LOGSTASH_PORT: "5044"
+      INDEX_NAME: "nginx"
+      ENCODING: "utf-8"
+    networks:
+      - elk
+    depends_on:
+      - nginx-proxy
+      - logstash
+      
+networks:
+  elk:
+    driver: bridge
+volumes:
+    nginx-logs:
+    esdata:
+
+    

@@ -1,0 +1,13 @@
+filebeat.modules:
+- module: nginx
+  access:
+    var.paths: ["/var/log/nginx/*access_local.log"]
+  error:
+    var.paths: ["/var/log/nginx/*error*.log"]
+            
+output:
+    logstash:
+        enabled: true
+        hosts: ["${LOGSTASH_HOST}:${LOGSTASH_PORT}"]
+        index: ${INDEX_NAME}
+        encoding: ${ENCODING}
